@@ -14,7 +14,7 @@ Auto-pong painting game (4-team and 16-team variants) in Python + Pygame.
 
 <img width="968" height="872" alt="image" src="https://github.com/user-attachments/assets/b860e833-32a7-4b10-86bd-7dd97eb81f1b" />
 
-# Attribution:
+# Credit:
 
 -- Pong Wars in Github: https://t.co/5le0OJtcVO</cite>
 
