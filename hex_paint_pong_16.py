@@ -74,6 +74,50 @@ def get_mono_font(size):
     path = pygame.font.match_font(candidates, bold=False, italic=False)
     return pygame.font.Font(path, size) if path else pygame.font.SysFont("courier", size)
 
+# --- Spark particles -------------------------------------------------
+def lighten(rgb, factor=1.5):
+    r, g, b = rgb
+    return (min(255, int(r*factor)),
+            min(255, int(g*factor)),
+            min(255, int(b*factor)))
+
+class Particle:
+    def __init__(self, x, y, color):
+        import random, math
+        self.x, self.y = x, y
+        ang   = random.uniform(0, 2*math.pi)
+        speed = random.uniform(80, 220)
+        self.vx, self.vy = math.cos(ang)*speed, math.sin(ang)*speed
+        self.life = random.uniform(0.18, 0.35)   # seconds remaining
+        self.max_life = self.life
+        self.size = random.randint(2, 3)
+        self.color = color
+
+    def update(self, dt):
+        # fade + simple drag
+        self.life -= dt
+        self.x += self.vx * dt
+        self.y += self.vy * dt
+        drag = 1 - 3*dt
+        if drag < 0: drag = 0
+        self.vx *= drag
+        self.vy *= drag
+
+    def draw(self, screen):
+        if self.life <= 0: return
+        # alpha proportional to remaining life
+        alpha = max(0, min(255, int(255 * (self.life / self.max_life))))
+        s = pygame.Surface((self.size*2, self.size*2), pygame.SRCALPHA)
+        pygame.draw.circle(s, (*self.color, alpha), (self.size, self.size), self.size)
+        screen.blit(s, (int(self.x - self.size), int(self.y - self.size)))
+
+def emit_spark(particles, x, y, team):
+    base = TEAM_BALL[team] if 'TEAM_BALL' in globals() else (255, 255, 255)
+    col  = lighten(base, 1.5)
+    for _ in range(14):     # number of particles per hit
+        particles.append(Particle(x, y, col))
+
+
 class Grid:
     # grid[y][x] holds a team id 0..N_TEAMS-1
     def __init__(self):
@@ -152,29 +196,27 @@ class Ball:
         dx, dy = rand_dir()
         self.vx, self.vy = dx * SPEED, dy * SPEED
 
-    def step_axis(self, grid: Grid, dt, axis):
+    def step_axis(self, grid, dt, axis, particles):
         if axis == 'x':
             newx = self.x + self.vx * dt
-            # world-edge bounce
             if newx < BALL_R or newx > PLAY_W - BALL_R:
                 self.vx *= -1
                 return
-
-            # rim cell we are entering
             dir_sign = 1 if self.vx > 0 else -1
             rimx = newx + (BALL_R if dir_sign > 0 else -BALL_R)
             rimx = clamp(rimx, BALL_R, PLAY_W - BALL_R)
-
             cgy = int(self.y // CELL)
             cgx = int(rimx // CELL)
             cell_team = grid.team_at(cgx, cgy)
 
             if cell_team is not None and cell_team != self.team:
-                # paint 4 cells (2 in front along X, 1 above, 1 below), then bounce X
                 paint_cross(grid, cgx, cgy, self.team, axis='x', dir_sign=dir_sign)
+                # emit spark at center of impact cell
+                hit_x = cgx * CELL + CELL/2
+                hit_y = cgy * CELL + CELL/2
+                emit_spark(particles, hit_x, hit_y, self.team)
                 self.vx *= -1
                 return
-
             self.x = newx
 
         else:  # axis == 'y'
@@ -182,26 +224,25 @@ class Ball:
             if newy < BALL_R or newy > PLAY_H - BALL_R:
                 self.vy *= -1
                 return
-
             dir_sign = 1 if self.vy > 0 else -1
             rimy = newy + (BALL_R if dir_sign > 0 else -BALL_R)
             rimy = clamp(rimy, BALL_R, PLAY_H - BALL_R)
-
             cgx = int(self.x // CELL)
             cgy = int(rimy // CELL)
             cell_team = grid.team_at(cgx, cgy)
 
             if cell_team is not None and cell_team != self.team:
-                # paint 4 cells (2 in front along Y, 1 left, 1 right), then bounce Y
                 paint_cross(grid, cgx, cgy, self.team, axis='y', dir_sign=dir_sign)
+                hit_x = cgx * CELL + CELL/2
+                hit_y = cgy * CELL + CELL/2
+                emit_spark(particles, hit_x, hit_y, self.team)
                 self.vy *= -1
                 return
-
             self.y = newy
 
-    def update(self, grid: Grid, dt):
-        self.step_axis(grid, dt, 'x')
-        self.step_axis(grid, dt, 'y')
+    def update(self, grid, dt, particles):
+        self.step_axis(grid, dt, 'x', particles)
+        self.step_axis(grid, dt, 'y', particles)
 
     def draw(self, screen):
         # ball with subtle dark outline for visibility
@@ -267,6 +308,7 @@ def main():
     pygame.display.set_caption("Hex Paint Pong — 16 teams")
     clock = pygame.time.Clock()
     font = get_mono_font(18)
+    particles = []
 
     grid = Grid()
 
@@ -293,11 +335,22 @@ def main():
 
         if not paused:
             for b in balls:
-                b.update(grid, dt)
+                b.update(grid, dt, particles)
+            # particles update & prune
+            for p in particles[:]:
+                p.update(dt)
+                if p.life <= 0:
+                    particles.remove(p)
 
-        # Draw playfield
+        # DRAW
         screen.fill(BG)
         grid.draw(screen)
+
+        # draw particles (above board)
+        for p in particles:
+            p.draw(screen)
+
+        # draw balls on top
         for b in balls:
             b.draw(screen)
 
