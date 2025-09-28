@@ -16,6 +16,6 @@ Auto-pong painting game (4-team and 16-team variants) in Python + Pygame.
 
 ```Attribution:
 
--- Code: https://t.co/5le0OJtcVO
+<cite>Code: https://t.co/5le0OJtcVO</cite>
 
 -- Suggested on X: https://x.com/denicmarko/status/1972271674419749224
