@@ -19,6 +19,10 @@ HUD_TEXT  = (236, 238, 240)
 SEPARATOR = (28, 64, 72)
 BORDER    = (12, 28, 32)
 
+# Diagonal launch tuning
+DIAGONAL_ANGLES_DEG = (45, 135, 225, 315)
+DIAGONAL_SPREAD_DEG = 18     # random ± spread around a chosen diagonal
+
 # 16 distinct mid-tone fills (no white), with darker “ball” accents
 TEAM_NAMES = [
     "Sky","Amber","Orchid","Jade",
@@ -69,7 +73,10 @@ N_TEAMS = 16
 
 def clamp(v, lo, hi): return max(lo, min(hi, v))
 def rand_dir():
-    ang = random.uniform(0, 2*math.pi)
+    """Pick a diagonal (45,135,225,315) and add small random spread (±DIAGONAL_SPREAD_DEG)."""
+    base_deg = random.choice(DIAGONAL_ANGLES_DEG)
+    jitter   = random.uniform(-DIAGONAL_SPREAD_DEG, DIAGONAL_SPREAD_DEG)
+    ang      = math.radians(base_deg + jitter)
     return math.cos(ang), math.sin(ang)
 
 def get_mono_font(size):
