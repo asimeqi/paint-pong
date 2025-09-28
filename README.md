@@ -12,7 +12,8 @@ Auto-pong painting game (4-team and 16-team variants) in Python + Pygame.
 # or
     python3 hex_paint_pong_16.py
 
-<img width="969" height="870" alt="image" src="https://github.com/user-attachments/assets/1e0c2566-4339-44be-89e3-5c58446a579e" />
+<img width="969" height="870" alt="image" src="https://github.com/user-attachments/assets/9518bc60-325e-4b05-b997-c23583c1fa25" />
+
 
 
 # Credit:
