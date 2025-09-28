@@ -8,7 +8,10 @@ CELL      = 12
 ROWS      = PLAY_H // CELL
 COLS      = PLAY_W // CELL
 BALL_R    = 8
-SPEED     = 600
+BASE_SPEED   = 600
+SPEED_MIN    = 275
+SPEED_MAX    = 1050
+SPEED_SMOOTH = 0.25
 FPS       = 60
 
 BG        = (18, 46, 54)
@@ -183,18 +186,45 @@ def paint_cross(grid, gx, gy, team, axis, dir_sign):
     grid.set_cell(*side1, team)
     grid.set_cell(*side2, team)                
 
+def update_team_speeds(balls, counts):
+    total = ROWS * COLS
+    nteams = max(1, len(set(b.team for b in balls)))
+    avg = total / nteams
+    eps = 1.0
+    for b in balls:
+        c = counts[b.team]
+        target = BASE_SPEED * (avg / (c + eps))
+        target = max(SPEED_MIN, min(SPEED_MAX, target))
+        b.set_speed_toward(target)  # uses SPEED_SMOOTH
+
 class Ball:
     def __init__(self, x, y, team):
         self.x, self.y = x, y
         dx, dy = rand_dir()
-        self.vx, self.vy = dx * SPEED, dy * SPEED
+        self.vx, self.vy = dx * BASE_SPEED, dy * BASE_SPEED  # was SPEED
         self.team = team
         self.color = TEAM_BALL[team]
 
     def reset(self, x, y):
         self.x, self.y = x, y
         dx, dy = rand_dir()
-        self.vx, self.vy = dx * SPEED, dy * SPEED
+        self.vx, self.vy = dx * BASE_SPEED, dy * BASE_SPEED  # was SPEED
+
+    def set_speed_toward(self, target_speed, smooth=SPEED_SMOOTH):
+        """Scale (vx,vy) so |v| moves toward target_speed with simple exponential smoothing."""
+        vx, vy = self.vx, self.vy
+        cur = math.hypot(vx, vy)
+        if cur <= 1e-6:
+            # dead stop? give it a nudge in a random direction
+            ang = random.uniform(0, 2*math.pi)
+            self.vx = math.cos(ang) * target_speed
+            self.vy = math.sin(ang) * target_speed
+            return
+        # blend current magnitude toward target
+        new_mag = (1.0 - smooth) * cur + smooth * target_speed
+        scale = new_mag / cur
+        self.vx *= scale
+        self.vy *= scale
 
     def step_axis(self, grid, dt, axis, particles):
         if axis == 'x':
@@ -320,6 +350,10 @@ def main():
 
     while running:
         dt = clock.tick(FPS) / 1000.0
+
+        counts = grid.counts()
+        # adjust team speeds toward equilibrium
+        update_team_speeds(balls, counts)
 
         for e in pygame.event.get():
             if e.type == pygame.QUIT: running = False
