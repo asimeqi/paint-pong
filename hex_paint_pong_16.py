@@ -117,6 +117,28 @@ class Grid:
             for x in range(COLS):
                 pygame.draw.rect(screen, TEAM_FILL[row[x]], (x*CELL, py, CELL, CELL))
 
+def paint_cross(grid, gx, gy, team, axis, dir_sign):
+    """
+    Paint 4 cells:
+      - impact cell (gx, gy)
+      - one more 'in front' along travel axis (dir_sign = +1 or -1)
+      - two 'side' cells perpendicular to axis
+    """
+    # center
+    grid.set_cell(gx, gy, team)
+
+    # in-front cell
+    if axis == 'x':
+        gx2, gy2 = gx + dir_sign, gy
+        side1, side2 = (gx, gy - 1), (gx, gy + 1)
+    else:  # axis == 'y'
+        gx2, gy2 = gx, gy + dir_sign
+        side1, side2 = (gx - 1, gy), (gx + 1, gy)
+
+    grid.set_cell(gx2, gy2, team)
+    grid.set_cell(*side1, team)
+    grid.set_cell(*side2, team)                
+
 class Ball:
     def __init__(self, x, y, team):
         self.x, self.y = x, y
@@ -133,33 +155,48 @@ class Ball:
     def step_axis(self, grid: Grid, dt, axis):
         if axis == 'x':
             newx = self.x + self.vx * dt
+            # world-edge bounce
             if newx < BALL_R or newx > PLAY_W - BALL_R:
                 self.vx *= -1
                 return
-            rimx = newx + (BALL_R if self.vx > 0 else -BALL_R)
+
+            # rim cell we are entering
+            dir_sign = 1 if self.vx > 0 else -1
+            rimx = newx + (BALL_R if dir_sign > 0 else -BALL_R)
             rimx = clamp(rimx, BALL_R, PLAY_W - BALL_R)
+
             cgy = int(self.y // CELL)
             cgx = int(rimx // CELL)
             cell_team = grid.team_at(cgx, cgy)
+
             if cell_team is not None and cell_team != self.team:
-                grid.set_cell(cgx, cgy, self.team)
+                # paint 4 cells (2 in front along X, 1 above, 1 below), then bounce X
+                paint_cross(grid, cgx, cgy, self.team, axis='x', dir_sign=dir_sign)
                 self.vx *= -1
                 return
+
             self.x = newx
-        else:
+
+        else:  # axis == 'y'
             newy = self.y + self.vy * dt
             if newy < BALL_R or newy > PLAY_H - BALL_R:
                 self.vy *= -1
                 return
-            rimy = newy + (BALL_R if self.vy > 0 else -BALL_R)
+
+            dir_sign = 1 if self.vy > 0 else -1
+            rimy = newy + (BALL_R if dir_sign > 0 else -BALL_R)
             rimy = clamp(rimy, BALL_R, PLAY_H - BALL_R)
+
             cgx = int(self.x // CELL)
             cgy = int(rimy // CELL)
             cell_team = grid.team_at(cgx, cgy)
+
             if cell_team is not None and cell_team != self.team:
-                grid.set_cell(cgx, cgy, self.team)
+                # paint 4 cells (2 in front along Y, 1 left, 1 right), then bounce Y
+                paint_cross(grid, cgx, cgy, self.team, axis='y', dir_sign=dir_sign)
                 self.vy *= -1
                 return
+
             self.y = newy
 
     def update(self, grid: Grid, dt):
